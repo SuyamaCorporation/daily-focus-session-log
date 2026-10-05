@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Focus Session Log & Streak Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .heat-cell { width:14px; height:14px; border-radius:3px; flex-shrink:0; cursor:pointer; }
+  .heat-0 { background:#ebedf0; }
+  .heat-1 { background:#9be9a8; }
+  .heat-2 { background:#40c463; }
+  .heat-3 { background:#30a14e; }
+  .heat-4 { background:#216e39; }
+  [data-dark] .heat-0 { background:#161b22; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div class="max-w-5xl mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">Focus Session Log</h1>
+      <p class="text-gray-500 text-sm mt-1">Track deep work habits and build consistency.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <label class="text-sm font-medium text-gray-600">Daily Goal (min):</label>
+      <input id="dailyGoal" type="number" min="1" max="1440" value="120" class="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" oninput="saveGoal(); renderAll()">
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6" id="stats-row"></div>
+
+  <!-- Today's Progress -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-semibold text-gray-800">Today's Progress</h2>
+      <span id="today-pct" class="text-sm font-medium text-indigo-600">0%</span>
+    </div>
+    <div class="w-full bg-gray-100 rounded-full h-3 mb-1 overflow-hidden">
+      <div id="today-bar" class="h-3 rounded-full bg-indigo-500 transition-all duration-500" style="width:0%"></div>
+    </div>
+    <p id="today-label" class="text-xs text-gray-400">0 min logged today</p>
+  </div>
+
+  <div class="grid lg:grid-cols-3 gap-6">
+    <!-- Log Form -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+        <h2 class="font-semibold text-gray-800 mb-4">Log Session</h2>
+        <div class="grid gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="duration">Duration (minutes)</label>
+            <input id="duration" type="number" min="1" max="720" placeholder="25" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="category">Category</label>
+            <select id="category" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+              <option>Deep Work</option>
+              <option>Learning</option>
+              <option>Writing</option>
+              <option>Coding</option>
+              <option>Reading</option>
+              <option>Planning</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="sessionDate">Date</label>
+            <input id="sessionDate" type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="sessionNote">Note (optional)</label>
+            <input id="sessionNote" type="text" placeholder="What did you work on?" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <button onclick="addSession()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-medium transition-colors">Log Session</button>
+        </div>
+      </div>
+
+      <!-- Category Legend -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mt-4">
+        <h3 class="font-semibold text-gray-800 mb-3 text-sm">Category Breakdown</h3>
+        <div id="cat-breakdown" class="text-sm text-gray-400">No sessions yet.</div>
+      </div>
+    </div>
+
+    <!-- Heatmap + History -->
+    <div class="lg:col-span-2 grid gap-6">
+      <!-- Heatmap -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-gray-800">Activity Heatmap</h2>
+          <div class="flex gap-1 text-xs text-gray-400 items-center">
+            <span>Less</span>
+            <div class="heat-cell heat-0"></div>
+            <div class="heat-cell heat-1"></div>
+            <div class="heat-cell heat-2"></div>
+            <div class="heat-cell heat-3"></div>
+            <div class="heat-cell heat-4"></div>
+            <span>More</span>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <div id="heatmap" class="flex gap-1"></div>
+        </div>
+        <div class="flex gap-4 mt-2 text-xs text-gray-400">
+          <span id="heatmap-months"></span>
+        </div>
+      </div>
+
+      <!-- Session History -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-gray-800">Recent Sessions</h2>
+          <button onclick="clearAll()" class="text-xs text-red-400 hover:text-red-600">Clear All</button>
+        </div>
+        <div id="sessions-list" class="grid gap-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip" class="fixed bg-gray-900 text-white text-xs rounded px-2 py-1 pointer-events-none hidden shadow-lg z-50"></div>
+<div id="toast" class="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hidden shadow-lg" role="status"></div>
+
+<script>
+const CATEGORY_COLORS = {
+  'Deep Work':'#6366f1','Learning':'#0ea5e9','Writing':'#8b5cf6','Coding':'#10b981',
+  'Reading':'#f59e0b','Planning':'#ec4899','Other':'#6b7280'
+};
+
+let sessions = JSON.parse(localStorage.getItem('focus_sessions')||'[]');
+let dailyGoal = parseInt(localStorage.getItem('focus_goal')||'120');
+
+function saveGoal() {
+  dailyGoal = parseInt(document.getElementById('dailyGoal').value)||120;
+  localStorage.setItem('focus_goal', dailyGoal);
+}
+
+function addSession() {
+  const dur = parseInt(document.getElementById('duration').value);
+  if (!dur || dur < 1) { showToast('Enter a valid duration'); return; }
+  const cat = document.getElementById('category').value;
+  const date = document.getElementById('sessionDate').value || new Date().toISOString().split('T')[0];
+  const note = document.getElementById('sessionNote').value.trim();
+  sessions.unshift({ id:Date.now(), dur, cat, date, note });
+  try { localStorage.setItem('focus_sessions', JSON.stringify(sessions)); } catch(e){}
+  document.getElementById('duration').value='';
+  document.getElementById('sessionNote').value='';
+  renderAll();
+  showToast('Session logged!');
+}
+
+function deleteSession(id) {
+  sessions = sessions.filter(s=>s.id!==id);
+  try { localStorage.setItem('focus_sessions', JSON.stringify(sessions)); } catch(e){}
+  renderAll();
+}
+
+function clearAll() {
+  if(!confirm('Delete all sessions?')) return;
+  sessions=[];
+  localStorage.removeItem('focus_sessions');
+  renderAll();
+}
+
+function dayMap() {
+  const map = {};
+  sessions.forEach(s => { map[s.date] = (map[s.date]||0) + s.dur; });
+  return map;
+}
+
+function computeStreaks() {
+  const map = dayMap();
+  const today = new Date(); today.setHours(0,0,0,0);
+  let cur=0, best=0, tmp=0;
+  // iterate last 365 days
+  for(let i=0;i<365;i++){
+    const d=new Date(today); d.setDate(d.getDate()-i);
+    const key=d.toISOString().split('T')[0];
+    if(map[key]>0){tmp++;if(i===0||i<=cur+1)cur=tmp;best=Math.max(best,tmp);}
+    else if(i>0)tmp=0;
+  }
+  // recalculate current properly
+  let streak=0;
+  for(let i=0;i<365;i++){
+    const d=new Date(today); d.setDate(d.getDate()-i);
+    const key=d.toISOString().split('T')[0];
+    if(map[key]>0) streak++;
+    else if(i>0) break;
+  }
+  return {current:streak, best};
+}
+
+function renderStats() {
+  const map = dayMap();
+  const today = new Date().toISOString().split('T')[0];
+  const todayMin = map[today]||0;
+  const {current:streak, best:bestStreak} = computeStreaks();
+  const total = sessions.reduce((a,s)=>a+s.dur,0);
+
+  // weekly consistency
+  let weekDays=0;
+  for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const k=d.toISOString().split('T')[0];if(map[k]>0)weekDays++;}
+  const weekScore = Math.round(weekDays/7*100);
+
+  const stats = [
+    {label:'Current Streak',value:`${streak} day${streak!==1?'s':''}`,icon:'🔥',color:'text-orange-600'},
+    {label:'Longest Streak',value:`${bestStreak} day${bestStreak!==1?'s':''}`,icon:'🏆',color:'text-yellow-600'},
+    {label:'Total Sessions',value:sessions.length,icon:'📋',color:'text-indigo-600'},
+    {label:'Week Consistency',value:`${weekScore}%`,icon:'📊',color:'text-green-600'},
+  ];
+  document.getElementById('stats-row').innerHTML = stats.map(s=>`
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+      <div class="text-2xl mb-1">${s.icon}</div>
+      <div class="text-xl font-bold ${s.color}">${s.value}</div>
+      <div class="text-xs text-gray-500">${s.label}</div>
+    </div>`).join('');
+
+  // Today progress
+  const pct = Math.min(100, Math.round(todayMin/dailyGoal*100));
+  document.getElementById('today-bar').style.width=pct+'%';
+  document.getElementById('today-pct').textContent=pct+'%';
+  document.getElementById('today-label').textContent=`${todayMin} min logged today (goal: ${dailyGoal} min)`;
+  if(pct>=100) document.getElementById('today-bar').classList.replace('bg-indigo-500','bg-green-500');
+  else document.getElementById('today-bar').classList.replace('bg-green-500','bg-indigo-500');
+}
+
+function renderHeatmap() {
+  const map = dayMap();
+  const container = document.getElementById('heatmap');
+  container.innerHTML='';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const startDay = new Date(today); startDay.setDate(startDay.getDate()-364);
+  // align to Sunday
+  const offset = startDay.getDay();
+  startDay.setDate(startDay.getDate()-offset);
+
+  const maxVal = Math.max(...Object.values(map),1);
+  const weeks = [];
+  let week=[];
+  const d = new Date(startDay);
+  while(d<=today){
+    const key=d.toISOString().split('T')[0];
+    const val=map[key]||0;
+    const level=val===0?0:val<30?1:val<60?2:val<120?3:4;
+    week.push({key,val,level,date:new Date(d)});
+    if(d.getDay()===6){weeks.push(week);week=[];}
+    d.setDate(d.getDate()+1);
+  }
+  if(week.length) weeks.push(week);
+
+  const monthsShown = new Set();
+  weeks.forEach(wk=>{
+    const col=document.createElement('div');
+    col.className='flex flex-col gap-1';
+    wk.forEach(cell=>{
+      const el=document.createElement('div');
+      el.className=`heat-cell heat-${cell.level}`;
+      el.title=`${cell.key}: ${cell.val} min`;
+      el.setAttribute('tabindex','0');
+      el.setAttribute('aria-label',`${cell.key}: ${cell.val} minutes focused`);
+      el.addEventListener('mouseenter',e=>{showTip(e,`${cell.key}: ${cell.val} min`);});
+      el.addEventListener('mouseleave',hideTip);
+      col.appendChild(el);
+    });
+    container.appendChild(col);
+  });
+}
+
+function showTip(e,msg){const t=document.getElementById('tooltip');t.textContent=msg;t.classList.remove('hidden');t.style.left=(e.clientX+10)+'px';t.style.top=(e.clientY-30)+'px';}
+function hideTip(){document.getElementById('tooltip').classList.add('hidden');}
+
+function renderSessions() {
+  const el = document.getElementById('sessions-list');
+  const recent = sessions.slice(0,20);
+  if(!recent.length){el.innerHTML='<p class="text-gray-400 text-sm text-center py-4">No sessions logged yet.</p>';return;}
+  el.innerHTML = recent.map(s=>{
+    const color = CATEGORY_COLORS[s.cat]||'#6b7280';
+    return `<div class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+      <div class="w-2 h-8 rounded-full flex-shrink-0" style="background:${color}"></div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium text-gray-800">${s.dur} min · <span style="color:${color}">${s.cat}</span></div>
+        <div class="text-xs text-gray-400">${s.date}${s.note?' · '+s.note:''}</div>
+      </div>
+      <button onclick="deleteSession(${s.id})" class="text-gray-300 hover:text-red-400 text-xs flex-shrink-0" aria-label="Delete session">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderCategoryBreakdown() {
+  const el = document.getElementById('cat-breakdown');
+  if(!sessions.length){el.innerHTML='<p class="text-gray-400 text-sm">No sessions yet.</p>';return;}
+  const map={};
+  sessions.forEach(s=>{map[s.cat]=(map[s.cat]||0)+s.dur;});
+  const total=Object.values(map).reduce((a,b)=>a+b,0);
+  const sorted=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  el.innerHTML=sorted.map(([cat,min])=>{
+    const pct=Math.round(min/total*100);
+    const color=CATEGORY_COLORS[cat]||'#6b7280';
+    return `<div class="mb-2">
+      <div class="flex justify-between text-xs mb-0.5"><span style="color:${color}" class="font-medium">${cat}</span><span class="text-gray-400">${min}m (${pct}%)</span></div>
+      <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden"><div class="h-1.5 rounded-full" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderAll() {
+  renderStats();
+  renderHeatmap();
+  renderSessions();
+  renderCategoryBreakdown();
+}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2000);}
+
+window.addEventListener('load',()=>{
+  document.getElementById('sessionDate').value=new Date().toISOString().split('T')[0];
+  document.getElementById('dailyGoal').value=dailyGoal;
+  renderAll();
+});
+</script>
+</body>
+</html>
